@@ -14,8 +14,8 @@ from models import correlation_calc as cc
 #token_path = r"/usr/local/projects/pavlin_lab/bot_token.txt"
 token_path = 'bot_token.txt'
 bot_token = open(token_path).readlines()[0].replace('\n', '')
-home_path = r'/usr/local/projects/pavlin_lab/'
-home_path = r'/'
+home_path = r'/usr/projects/pavlin_lab/'
+#home_path = r''
 STAND_TYPE = 'TEST'  # PROD\TEST, influence on work with db
 
 message_dict = {'welcome': 'Welcome to PavlinLab! \nThis bot provides different techniques to analyze and model '

@@ -5,3 +5,4 @@ scipy
 yfinance
 pyTelegramBotAPI
 dataframe-image
+psycopg2-binary
