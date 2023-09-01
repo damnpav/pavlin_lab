@@ -266,11 +266,19 @@ def ticker_searcher(company_name):
     :return: found ticket: str / Not Found / dataframe with matches
     """
     ticker_base = pd.read_csv('secwiki_tickers.csv')
+    securities_me_df = pd.read_csv('rates.csv', encoding='cp1251', sep=';', engine='python')
     return_df = ticker_base.where(ticker_base['Name'].str.contains(company_name, case=False)).dropna()
     if len(return_df) == 1:
         return return_df['Ticker'].to_list()[0]
     elif len(return_df) == 0:
-        return 'Not Found'
+        return_df1 = securities_me_df.loc[securities_me_df['SHORTNAME'].str.contains(company_name, case=False,
+                                                                                      na=False)]
+        if len(return_df1) == 1:
+            return return_df1['SECID'].to_list()[0] + '.ME'
+        elif len(return_df1) > 1:
+            return return_df1[['SECID', 'SHORTNAME']]
+        else:
+            return 'Not Found'
     else:
         return return_df[['Ticker', 'Name', 'Sector', 'Industry']]
 
