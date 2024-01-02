@@ -4,8 +4,13 @@ import numpy as np
 import yfinance as yf
 from matplotlib import pyplot as plt
 import scipy.optimize as optimize
+from tqdm import tqdm
 from datetime import datetime as dt
 from datetime import timedelta as td
+import dataframe_image as dfi
+
+home_path = r'/usr/projects/pavlin_lab/'
+home_path = r''
 
 # mean-variance analysis
 # it's day-to-day model, also let's try month-to-month and year-to-year and compare results
@@ -14,6 +19,9 @@ from datetime import timedelta as td
 #  Using the Public API (without authentication), you are limited to 2,000 requests per hour per IP
 #  (or up to a total of 48,000 requests a day).
 class Portfolio:
+    """
+    Porfolio class represent Portfolio of Securities with share tickers, returns, stdevs and so on
+    """
     def __init__(self, shares, quantity, start_prices, start_dates):
         self.shares = shares            # list with share names
         self.share_data = yf.download(  # download Df with historical data
@@ -73,6 +81,11 @@ class Portfolio:
 
 
     def portfolio_return(self, quantity):
+        """
+        Calculate variance (risk) and return for current Portfolio
+        :param quantity: list with quantity of each paper in Portfolio
+        :return:
+        """
         portfolio_ret_calc = 0  # expected return of portfolio
         weights_calc = {}
         current_values_calc = {}
@@ -96,14 +109,33 @@ class Portfolio:
         return general_variance_calc / portfolio_ret_calc, general_variance_calc, portfolio_ret_calc
 
     def plot_bullet(self, ret_list, var_list, additional_dot):
-        var_list = [x*253*100 for x in var_list]
+        var_list = [x * 253 * 100 for x in var_list]
         ret_list = [x * 253 * 100 for x in ret_list]
+
+        # Calculate the ratio of variance to return for each dot
+        ratios = [var / ret for var, ret in zip(var_list, ret_list)]
+
+        # Get the indices of the top 5 lowest ratios
+        top_indices = sorted(range(len(ratios)), key=lambda i: ratios[i])[:10]
+
         plt.figure('Variance/ Return')
-        plt.scatter(var_list, ret_list)
+
+        # Plot all dots
+        plt.scatter(var_list, ret_list, color='blue')
+
+        # Plot the top 5 dots with the lowest ratios in red
+        for i in top_indices:
+            plt.scatter(var_list[i], ret_list[i], color='red')
+
+        # Adding axis labels
+        plt.xlabel('Variance (%)')
+        plt.ylabel('Return (%)')
 
         if additional_dot:
-            plt.scatter(additional_dot[0]*253*100, additional_dot[1]*253*100, color='red')
+            plt.scatter(additional_dot[0] * 253 * 100, additional_dot[1] * 253 * 100, color='green')
+
         return plt
+
 
     def randomize_portfolio(self, n, portf_sum, max_share_count, max_iterates):
         """
@@ -115,8 +147,8 @@ class Portfolio:
         :return: list of dicts presenting portfolios
         """
         quantity_list = []
-        for i in range(n):
-            print(f'Epoche is {i}')
+        for i in tqdm(range(n)):
+            #print(f'Epoche is {i}')
             flag = False
             share_quantity = {}
             current_values = {}
@@ -143,10 +175,11 @@ class Portfolio:
         rel_list = []
         var_list = []
         ret_list = []
-        risk_ret_df = pd.DataFrame(columns=['rel', 'shares'])
+        risk_ret_df = pd.DataFrame(columns=['rel', 'return', 'shares'])
         for share in quantity_list:
             another_tuple = self.portfolio_return(list(share.values()))
-            risk_ret_df = risk_ret_df.append({'rel': another_tuple[0], 'shares': str(share)}, ignore_index=True)
+            risk_ret_df = pd.concat([risk_ret_df, pd.DataFrame({'rel': [another_tuple[0]], 'return': [another_tuple[2]],
+                                                                'shares': [str(share)]})], ignore_index=True)
             rel_list.append(another_tuple[0])
             var_list.append(another_tuple[1])
             ret_list.append(another_tuple[2])
@@ -165,7 +198,7 @@ class Portfolio:
         plt.figure('Risk/Profit')
         rel_plot = plt.scatter(rel_df['index'], rel_df['rel_list'])
         risk_ret_df = risk_ret_df.sort_values(by='rel', ascending=True)
-        return bullet_plot, rel_plot, risk_ret_df[:1]
+        return bullet_plot, rel_plot, risk_ret_df[:10]
 
     def set_profit(self, profit):
         self.profit = profit
@@ -209,6 +242,46 @@ class Portfolio:
         self.weights['Depo'] = self.current_values['Depo'] / self.total_value  # calculate weights
         self.exp_ret['Depo'] = self.share_data[('Depo', 'Log_ret')].mean()
         self.corr_coef = self.return_df.corr()
+
+
+def generate_random_portfolios():
+    try:
+        shares_df = pd.read_csv('rates.csv', encoding='cp1251', sep=';', engine='python')
+        ticker_list = [ticker + '.ME' for ticker in shares_df['SECID'].tolist()]
+
+        ## preload data
+        all_data = yf.download(
+            tickers=" ".join(ticker_list),
+            period="1d",
+            interval="1d",
+            group_by='ticker',
+            auto_adjust=True,
+            prepost=True,
+            threads=True,
+            proxy=None
+        )
+        # Select the top 10 stocks with the most volumes for the last day
+        last_day_volumes = all_data['Volume'].iloc[-1]
+        top_10_tickers = last_day_volumes.sort_values(ascending=False).head(10).index
+
+        n = 100  # Number of random portfolios to generate
+        portf_sum = 100000  # Maximum total value of portfolio
+        max_share_count = 10  # Maximum count of shares for each stock
+        max_iterates = 1000  # Maximum number of random iterates for generating a valid portfolio
+
+        myPortfolio = Portfolio(top_10_tickers, [1] * len(top_10_tickers), [1] * len(top_10_tickers), [1] * len(top_10_tickers))
+        quantity_list = myPortfolio.randomize_portfolio(n, portf_sum, max_share_count, max_iterates)
+        bullet_plot, rel_plot, best_portfolio = myPortfolio.plot_randoms(quantity_list, None)
+
+        # Save the bullet plot and best portfolio information to files
+        bullet_plot.savefig(f'{home_path}PNGs/bullet_plot.png')
+
+        df_styled = best_portfolio.style.background_gradient()
+        portfolio_image_path = f'{home_path}PNGs/portfolio_results.png'
+        dfi.export(df_styled, portfolio_image_path, table_conversion='matplotlib')
+        return True
+    except:
+        return False
 
 
 # myPortfolio = Portfolio(['AMD', 'KO', 'SAVE'], [1, 1, 1], [1, 1, 1], [1, 1, 1])
@@ -257,8 +330,6 @@ def correlation_calc(shares):
     return corr_coef_log_ret
 
 
-# TODO
-# need always to improve this search function
 def ticker_searcher(company_name):
     """
     Search stock ticker by its company's name
@@ -295,6 +366,8 @@ def check_ticker(ticker):
     return ticker in securities_list
 
 
+
+# TODO need to handle seaaborn images
 def fast_corrs(tickers):
     """
     Function to count long and short correlations between instruments

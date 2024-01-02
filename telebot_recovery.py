@@ -10,6 +10,7 @@ import traceback
 
 import models
 from models import correlation_calc as cc
+from models import generate_random_portfolios as grp
 
 #token_path = r"/usr/local/projects/pavlin_lab/bot_token.txt"
 token_path = 'bot_token.txt'
@@ -99,6 +100,22 @@ try:
             dfi.export(df_styled, found_path, table_conversion='matplotlib')
             bot.send_photo(chat_id=chat_id, photo=open(found_path, 'rb'), caption='Found companies',
                            parse_mode='HTML')
+
+
+    @bot.message_handler(commands=['random_portfolios'])
+    def random_portfolios_handler(message):
+        log_message(message, 'random_portfolios_request')
+        chat_id = message.chat.id
+        bot.send_message(chat_id, 'Generating random portfolios...', parse_mode='HTML')
+        grp_answer = grp()
+        if grp_answer:
+            bot.send_message(chat_id, 'Best portfolio of the day', parse_mode='HTML')
+            bot.send_photo(chat_id=chat_id, photo=open(f'{home_path}PNGs/portfolio_results.png', 'rb'),
+                           caption='portfolio_results', parse_mode='HTML')
+            bot.send_photo(chat_id=chat_id, photo=open(f'{home_path}PNGs/bullet_plot.png', 'rb'), caption='bullet_plot',
+                           parse_mode='HTML')
+        else:
+            bot.send_message(chat_id, 'Random portfolios obosrated :(!', parse_mode='HTML')
 
 
     @bot.callback_query_handler(func=lambda call: True)
@@ -254,6 +271,4 @@ try:
 except Exception as e:
     print(f'Exception:\n{e}\n\nTraceback:\n{traceback.format_exc()}')
     log_fall(str(traceback.format_exc()))
-
-# TODO инкапсулиповать корелляции
 
